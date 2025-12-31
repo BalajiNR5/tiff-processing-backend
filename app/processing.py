@@ -11,65 +11,69 @@ warnings.simplefilter("ignore", Image.DecompressionBombWarning)
 # SAFE TILE SIZE FOR FREE TIER
 TILE_SIZE = 512
 
+# Global in-memory progress tracker
+progress_dict = {}  # job_id -> progress percentage
+
+# Optional: store heatmaps temporarily
+heatmap_dict = {}  # job_id -> numpy array / file path
+
+
 def process_tiff_background(file_path: str, job_id: str):
     """
-    Background-safe, memory-safe TIFF processing.
+    Memory-safe, background TIFF processing.
     Tile-based grayscale intensity extraction.
+    Tracks progress for frontend polling.
     """
-
     print(f"[JOB {job_id}] Started processing")
 
     try:
         with Image.open(file_path) as img:
-            img = img.convert("L")  # single-channel grayscale
+            img = img.convert("L")  # grayscale
             width, height = img.size
 
-            # Optional: downscale extremely large images
-            max_dim = 4000  # free-tier safe
+            # Optional downscale for very large images
+            max_dim = 4000
             if max(width, height) > max_dim:
                 img.thumbnail((max_dim, max_dim), Image.LANCZOS)
                 width, height = img.size
                 print(f"[JOB {job_id}] Image downscaled to {width}x{height}")
 
-            tile_means = []
+            total_tiles = ((width + TILE_SIZE - 1) // TILE_SIZE) * ((height + TILE_SIZE - 1) // TILE_SIZE)
+            processed_tiles = 0
 
-            for y in range(0, height, TILE_SIZE):
-                for x in range(0, width, TILE_SIZE):
-                    box = (
-                        x,
-                        y,
-                        min(x + TILE_SIZE, width),
-                        min(y + TILE_SIZE, height)
-                    )
+            tile_means = np.zeros(( (height + TILE_SIZE -1)//TILE_SIZE , (width + TILE_SIZE -1)//TILE_SIZE ))
 
+            for ty, y in enumerate(range(0, height, TILE_SIZE)):
+                for tx, x in enumerate(range(0, width, TILE_SIZE)):
+                    box = (x, y, min(x + TILE_SIZE, width), min(y + TILE_SIZE, height))
                     tile = img.crop(box)
                     tile_np = np.asarray(tile, dtype=np.uint8)
 
-                    # Mean grayscale intensity (pressure proxy)
-                    tile_means.append(float(tile_np.mean()))
+                    # mean grayscale as proxy for intensity
+                    tile_means[ty, tx] = float(tile_np.mean())
 
-                    # Explicit cleanup (important)
+                    # Cleanup
                     del tile_np
                     del tile
 
-                    # CPU throttle (Render free tier protection)
-                    time.sleep(0.002)
+                    # Update progress
+                    processed_tiles += 1
+                    progress_dict[job_id] = int(processed_tiles / total_tiles * 100)
 
-            print(
-                f"[JOB {job_id}] Completed | "
-                f"Tiles processed: {len(tile_means)}"
-            )
+                    # Optional throttle for free-tier CPU
+                    time.sleep(0.001)
 
-            # TODO (future):
-            # - normalize tile_means
-            # - reconstruct heatmap
-            # - save output image
+            # Store processed tile means for future heatmap generation
+            heatmap_dict[job_id] = tile_means
+
+            print(f"[JOB {job_id}] Completed | Tiles processed: {processed_tiles}")
 
     except Exception as e:
         print(f"[JOB {job_id}] ERROR: {str(e)}")
+        progress_dict[job_id] = -1  # error code
 
     finally:
-        # CLEAN TEMP FILE
+        # Remove temp TIFF
         if os.path.exists(file_path):
             os.remove(file_path)
             print(f"[JOB {job_id}] Temp file removed")
