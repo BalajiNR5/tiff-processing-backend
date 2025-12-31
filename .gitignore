@@ -1,7 +1,0 @@
-jobs/
-tmp/*
-*.tif
-*.tiff
-*.png
-__pycache__/
-.env
