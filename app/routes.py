@@ -1,52 +1,42 @@
-from fastapi import APIRouter, UploadFile, File, BackgroundTasks, HTTPException
-import shutil
-import os
-import uuid
-
+from fastapi import APIRouter, UploadFile, BackgroundTasks
 from app.processing import process_tiff_background
+import uuid
+import os
 
+# Create router
 router = APIRouter()
 
-UPLOAD_DIR = "tmp"
-os.makedirs(UPLOAD_DIR, exist_ok=True)
-
-MAX_FILE_SIZE = 250_000_000  # 250 MB safety cap for free tier
+# Ensure tmp directory exists
+TEMP_DIR = "tmp"
+os.makedirs(TEMP_DIR, exist_ok=True)
 
 @router.post("/process")
-async def process_image(
-    background_tasks: BackgroundTasks,
-    file: UploadFile = File(...)
-):
-    # Validate file type
-    if not file.filename.lower().endswith((".tif", ".tiff")):
-        raise HTTPException(status_code=400, detail="Only TIFF files are supported")
+async def process_tiff(file: UploadFile, background_tasks: BackgroundTasks):
+    """
+    Endpoint to upload TIFF file and start background processing.
+    Returns a job_id to track the task.
+    """
 
     # Generate unique job ID
     job_id = str(uuid.uuid4())
-    file_path = os.path.join(UPLOAD_DIR, f"{job_id}.tiff")
 
-    # --- STREAM FILE TO DISK (NO RAM LOAD) ---
-    size = 0
-    with open(file_path, "wb") as buffer:
-        while True:
-            chunk = await file.read(1024 * 1024)  # 1 MB chunks
-            if not chunk:
-                break
-            size += len(chunk)
-            if size > MAX_FILE_SIZE:
-                buffer.close()
-                os.remove(file_path)
-                raise HTTPException(status_code=413, detail="File too large for free tier")
-            buffer.write(chunk)
+    # Save uploaded file to temporary directory
+    temp_path = os.path.join(TEMP_DIR, f"{job_id}.tiff")
+    with open(temp_path, "wb") as f:
+        f.write(await file.read())
 
-    # --- BACKGROUND PROCESSING ---
-    background_tasks.add_task(
-        process_tiff_background,
-        file_path,
-        job_id
-    )
+    # Add background task to process the TIFF
+    background_tasks.add_task(process_tiff_background, temp_path, job_id)
 
-    return {
-        "job_id": job_id,
-        "status": "processing_started"
-    }
+    # Return job_id immediately to frontend
+    return {"job_id": job_id, "status": "processing_started"}
+
+
+@router.get("/status/{job_id}")
+def check_status(job_id: str):
+    """
+    Optional: Return status of processing.
+    For now, just a placeholder that always says 'processing'.
+    """
+    # You can enhance this later to track real-time progress
+    return {"job_id": job_id, "status": "processing"}
