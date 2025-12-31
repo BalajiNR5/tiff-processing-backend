@@ -8,10 +8,7 @@ app = FastAPI(
 )
 
 # --- CORS setup ---
-# Allow your frontend (AI Studio) to call this backend
-origins = [
-    "*"  # For testing; later replace "*" with your AI Studio domain for security
-]
+origins = ["*"]  # frontend can access
 
 app.add_middleware(
     CORSMiddleware,
@@ -24,7 +21,6 @@ app.add_middleware(
 # Include API routes
 app.include_router(router)
 
-# Health check endpoint
 @app.get("/")
 def health_check():
     return {"status": "running"}
