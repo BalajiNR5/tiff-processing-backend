@@ -4,3 +4,6 @@ python-multipart
 tifffile
 numpy
 opencv-python-headless
+pillow
+
+
