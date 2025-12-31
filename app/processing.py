@@ -2,6 +2,11 @@ import numpy as np
 from PIL import Image
 import os
 import time
+import warnings
+
+# --- Pillow safe settings for large TIFFs ---
+Image.MAX_IMAGE_PIXELS = None
+warnings.simplefilter("ignore", Image.DecompressionBombWarning)
 
 # SAFE TILE SIZE FOR FREE TIER
 TILE_SIZE = 512
@@ -18,6 +23,13 @@ def process_tiff_background(file_path: str, job_id: str):
         with Image.open(file_path) as img:
             img = img.convert("L")  # single-channel grayscale
             width, height = img.size
+
+            # Optional: downscale extremely large images
+            max_dim = 4000  # free-tier safe
+            if max(width, height) > max_dim:
+                img.thumbnail((max_dim, max_dim), Image.LANCZOS)
+                width, height = img.size
+                print(f"[JOB {job_id}] Image downscaled to {width}x{height}")
 
             tile_means = []
 
