@@ -1,8 +1,10 @@
-# app/main.py
 from fastapi import FastAPI
 from app.routes import router
 
-app = FastAPI(title="TIFF Image Processing Backend")
+app = FastAPI(
+    title="Large TIFF Processing Backend",
+    version="1.0"
+)
 
 app.include_router(router)
 
