@@ -1,0 +1,6 @@
+jobs/
+*.tif
+*.tiff
+*.png
+__pycache__/
+.env
