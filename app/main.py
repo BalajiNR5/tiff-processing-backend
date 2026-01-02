@@ -1,26 +1,21 @@
-from fastapi import FastAPI
-from fastapi.middleware.cors import CORSMiddleware
-from app.routes import router
+# main.py
+from flask import Flask, jsonify
+from routes import init_routes  # we'll define this in routes.py
 
-app = FastAPI(
-    title="Large TIFF Processing Backend",
-    version="1.0"
-)
+app = Flask(__name__)
 
 # --- CORS setup ---
-origins = ["*"]  # frontend can access
+from flask_cors import CORS
+CORS(app)  # allow all origins
 
-app.add_middleware(
-    CORSMiddleware,
-    allow_origins=origins,
-    allow_credentials=True,
-    allow_methods=["*"],
-    allow_headers=["*"],
-)
+# Register API routes
+init_routes(app)
 
-# Include API routes
-app.include_router(router)
-
-@app.get("/")
+# Health check endpoint
+@app.route("/", methods=["GET"])
 def health_check():
-    return {"status": "running"}
+    return jsonify({"status": "running"})
+
+if __name__ == "__main__":
+    # Run the Flask app
+    app.run(host="0.0.0.0", port=8000, debug=True)
