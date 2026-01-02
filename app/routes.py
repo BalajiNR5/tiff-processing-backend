@@ -45,15 +45,16 @@ def init_routes(app):
     @app.route("/heatmap/<job_id>", methods=["GET"])
     def get_heatmap(job_id):
         """
-        Returns heatmap PNG file path for frontend display
+        Returns heatmap PNG file for frontend display
         """
         heatmap_path = heatmap_dict.get(job_id)
         if heatmap_path is None or not os.path.exists(heatmap_path):
             return jsonify({"error": "Heatmap not ready or job_id invalid"}), 404
 
-        # Serve the file directly
+        # Serve the file directly from tmp folder
+        filename = os.path.basename(heatmap_path)
         return send_from_directory(
-            os.path.dirname(heatmap_path),
-            os.path.basename(heatmap_path),
+            TEMP_DIR,      # Serve files from tmp/
+            filename,
             as_attachment=False
         )
